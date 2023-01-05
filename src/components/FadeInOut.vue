@@ -1,13 +1,24 @@
 <template>
   <div class="m-main">
-    <div class="m-control is-hidden">
+    <div v-show="!showForm" class="m-control is-hidden">
       <el-scrollbar height="100%">
-        <div v-for="(item, index) in buttons" :key="item.id" class="m-item" :class="index === 3? 'm-active' : ''">{{ item.buttonName }}</div>
+        <div 
+          v-for="(item, index) in buttons"
+          :key="item.id"
+          :class="index === activeIndexButton ? 'm-active' : ''"
+          @click="activeIndexButton = index"
+          class="m-item"
+        >{{ item.buttonName }}</div>
       </el-scrollbar>
     </div>
-    <div class="m-pic-box">
+    <div v-show="!showForm" class="m-pic-box">
       <main class="m-pic-wrapper">
-        <img v-for="(img, index) in imgList" :key="index" :src="img" alt="">
+        <img
+          v-for="(img, index) in imgList" 
+          :class="activeIndexImage === index ? 'm-fade-in' : 'm-fade-out'"
+          :key="index" 
+          :src="img"
+          alt="">
       </main>
     </div>
     <div class="m-bg">
@@ -25,7 +36,7 @@
       </el-form-item>
 
       <el-form-item label="循环间隔" prop="loop">
-        <el-input-number v-model="config.stepTime" :disabled="!config.loop"></el-input-number>
+        <el-input-number v-model="config.stepTime" :min="MIN_STEP_TIME" :disabled="!config.loop"></el-input-number>
       </el-form-item>
 
       <div class="m-form-footer">
@@ -37,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { get, baseURL } from '@/request/request'
 import { getStorage, setStorage } from '@/utils/storage'
 import { ElMessage } from 'element-plus'
@@ -54,7 +65,9 @@ interface ButtonItem {
   materials: string;
 }
 
+let LOOP_TIMER: NodeJS.Timer
 const STORAGE_KEY = 'equipConfig'
+const MIN_STEP_TIME = 3
 const showForm = ref(true)
 const bgImg = ref('')
 const config = ref<EquipConfig>({
@@ -117,16 +130,44 @@ const getEquipDetail = async () => {
   setStorage<EquipConfig>(STORAGE_KEY, config.value)
 }
 
+// 循环
+const useLoop = () => {
+  if (LOOP_TIMER) clearInterval(LOOP_TIMER);
+  if (!config.value.loop) return;
+  LOOP_TIMER = setInterval(() => {
+    activeIndexImage.value++
+  }, config.value.stepTime * 1000)
+}
+
+watch(activeIndexButton, () => {
+  activeIndexImage.value = 0
+})
+
+
+watch(activeIndexImage, () => {
+  if (activeIndexImage.value > imgList.value.length - 1) {
+    activeIndexImage.value = 0
+  }
+  console.log(activeIndexImage.value)
+})
+
+watch(showForm, useLoop)
+
 
 onMounted(() => {
   getEquipDetail()
+  useLoop()
 })
 
+onBeforeUnmount(() => {
+  if (LOOP_TIMER) clearInterval(LOOP_TIMER);
+})
 
 
 </script>
 
 <style scoped lang="scss">
+$controlWidth: 280px;
 .m-main {
   position: relative;
   width: 100vw;
@@ -149,7 +190,7 @@ onMounted(() => {
   }
 
   .m-control {
-    width: 280px;
+    width: $controlWidth;
     height: 60%;
     max-height: 380px;
     padding: 20px 0;
@@ -157,7 +198,7 @@ onMounted(() => {
     color: rgba($color: #fff, $alpha: .6);
     font-size: 20px;
     transition: all 500ms ease;
-    // border: 1px solid #fff;
+    // backdrop-filter: blur(5px);
 
     .m-item {
       position: relative;
@@ -166,7 +207,7 @@ onMounted(() => {
       line-height: 40px;
       cursor: pointer;
       transition: all 200ms;
-
+      user-select: none;
       &:hover {
         background-color: rgba($color: #fff, $alpha: .3);
       }
@@ -203,25 +244,37 @@ onMounted(() => {
   }
 
   .m-control.is-hidden {
-    // margin-left: -300px; // 隐藏控制面板
+    // margin-left: -$controlWidth; // 隐藏控制面板
   }
 
   .m-pic-box {
     display: flex;
     width: 100%;
+    height: 100%;
     align-items: center;
     justify-content: center;
     .m-pic-wrapper {
       position: relative;
       width: 80%;
-      height: 800px;
+      max-height: 80vh;
+      min-height: 80vh;
       overflow: hidden;
+      border-radius: 6px;
       img {
         position: absolute;
-        left: 0;
-        top: 0;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
         width: 100%;
-        
+        opacity: 0;
+        border-radius: 6px;
+        transition: opacity 1s linear;
+      }
+      .m-fade-in {
+        opacity: 1;
+      }
+      .m-fade-out {
+        opacity: 0;
       }
     }
   }
@@ -298,4 +351,18 @@ onMounted(() => {
   }
 }
 
+@media screen and (max-width: 400px) {
+  .m-main {
+    .m-control {
+      margin-left: -$controlWidth;
+      
+    }
+
+    .m-pic-box {
+      .m-pic-wrapper {
+        width: 90%;
+      }
+    }
+  }
+}
 </style>

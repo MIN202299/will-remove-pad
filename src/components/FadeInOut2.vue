@@ -24,10 +24,10 @@ const activeIndex = ref(0)
 const infinite = ref(true)
 
 const getImgList = async () => {
-  const { code, data } = await get('/guide/btnList', { guideEquipId: 6 })
+  const { code, data } = await get('/guide/btnList', { guideEquipId: 4 })
   if (!code) {
     console.log(data)
-    imgList.value = data.list.shift().materials.split(',').map((item: string) => `${baseURL}/${item}`)
+    imgList.value = data.list.shift().materials.split(',').map((item: string) => `${baseURL+item}`)
   }
 }
 
@@ -82,7 +82,6 @@ const test = (e: Event) => {
     height: auto;
     opacity: 0;
     transition: opacity 1s ease-in-out;
-    filter: blur(5px);
   }
 
   .m-fade-in {
@@ -103,9 +102,10 @@ const test = (e: Event) => {
   align-items: center;
   justify-content: space-between;
   z-index: 100;
-  width: 20vw;
-  // backdrop-filter: blur(10px);
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+  width: 50vw;
+  backdrop-filter: blur(10px);
+  // background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+  background: rgba(255, 255, 255, .2);
   span {
     display: block;
     padding: 10px 20px;

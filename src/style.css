@@ -45,3 +45,20 @@ body {
   height: 100%;
   place-items: center;
 }
+
+.clearfix {
+  *zoom: 1;
+}
+
+.clearfix::before,
+.clearfix::after {
+  display: table; 
+  content: ' ';
+}
+
+.clearfix::after {
+  clear: both;
+  height: 0;
+  line-height: 0;
+  visibility: hidden;
+}
