@@ -19,7 +19,19 @@
           :key="index" 
           :src="img"
           alt="">
+
+          <ul class="m-footer">
+            <li 
+              v-for="item in imgList.length" 
+              :key="item"
+              :class="activeIndexImage === item - 1 ? 'm-active' : ''"
+              @click="activeIndexImage = item - 1"
+            ></li>
+          </ul>
       </main>
+
+      
+      
     </div>
     <div class="m-bg">
       <img :src="bgImg || '/src/assets/logo.png'" :style="{filter: bgImg ? 'blur(5px)' : 'none'}" alt="">
@@ -114,20 +126,24 @@ const getEquipDetail = async () => {
     showForm.value = true
     return ElMessage.error('请输入设备号')
   }
-  const { code, data } = await get(`guide/getDetail/${config.value.equipId}`)
-  console.log(code, data)
-  if (code) {
-    return ElMessage.error('设备不存在')
-  }
-  if (data.equip.bgImg) {
-    bgImg.value = baseURL + data.equip.bgImg
-  }
+  try {
+    const { code, data } = await get(`guide/getDetail/${config.value.equipId}`)
+    console.log(code, data)
+    if (code) {
+      return ElMessage.error('设备不存在')
+    }
+    if (data.equip.bgImg) {
+      bgImg.value = baseURL + data.equip.bgImg
+    }
 
-  equipInfo.value = data.equip
-  buttons.value = data.buttons
+    equipInfo.value = data.equip
+    buttons.value = data.buttons
 
-  showForm.value = false
-  setStorage<EquipConfig>(STORAGE_KEY, config.value)
+    showForm.value = false
+    setStorage<EquipConfig>(STORAGE_KEY, config.value)
+  } catch (e) {
+    ElMessage.error('服务端未启动')
+  }
 }
 
 // 循环
@@ -167,7 +183,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
-$controlWidth: 280px;
+$controlWidth: 240px;
 .m-main {
   position: relative;
   width: 100vw;
@@ -198,6 +214,7 @@ $controlWidth: 280px;
     color: rgba($color: #fff, $alpha: .6);
     font-size: 20px;
     transition: all 500ms ease;
+    flex-shrink: 0;
     // backdrop-filter: blur(5px);
 
     .m-item {
@@ -253,6 +270,7 @@ $controlWidth: 280px;
     height: 100%;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
     .m-pic-wrapper {
       position: relative;
       width: 80%;
@@ -275,6 +293,36 @@ $controlWidth: 280px;
       }
       .m-fade-out {
         opacity: 0;
+      }
+    }
+
+    .m-footer {
+      display: flex;
+      position: absolute;
+      bottom: 50px;
+      left: 50%;
+      min-width: 60%;
+      padding: 20px;
+      background-color: rgba($color: #fff, $alpha: .2);
+      transform: translateX(-50%);
+      align-items: center;
+      justify-content: space-around;
+      backdrop-filter: blur(10px);
+      border-radius: 6px;
+
+      li {
+        margin: 5px;
+        width: 100%;
+        height: 6px;
+        min-width: 6px;
+        background-color: rgba(0,0,0,.2);
+        border-radius: 3px;
+        transition: all 300ms;
+        cursor: pointer;
+      }
+
+      .m-active {
+        background-color: #fff;
       }
     }
   }
