@@ -7,6 +7,7 @@ export {}
 
 declare module '@vue/runtime-core' {
   export interface GlobalComponents {
+    BigScreen: typeof import('./src/components/BigScreen.vue')['default']
     ElForm: typeof import('element-plus/es')['ElForm']
     ElFormItem: typeof import('element-plus/es')['ElFormItem']
     ElInput: typeof import('element-plus/es')['ElInput']
@@ -15,5 +16,6 @@ declare module '@vue/runtime-core' {
     ElSwitch: typeof import('element-plus/es')['ElSwitch']
     FadeInOut: typeof import('./src/components/FadeInOut.vue')['default']
     FadeInOut2: typeof import('./src/components/FadeInOut2.vue')['default']
+    Pad: typeof import('./src/components/Pad.vue')['default']
   }
 }
