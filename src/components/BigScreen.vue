@@ -17,6 +17,15 @@
     <el-form-item label="设备号" prop="equipId">
       <el-input v-model="config.equipId"></el-input>
     </el-form-item>
+    
+    <el-form-item label="循环播放" prop="loop">
+      <el-switch v-model="config.loop"></el-switch>
+    </el-form-item>
+    
+    <el-form-item label="循环间隔" prop="stepTime">
+      <el-input-number v-model="config.stepTime" :min="MIN_STEP_TIME" :disabled="!config.loop"></el-input-number>
+    </el-form-item>
+
 
     <div class="m-form-footer">
       <span @click="onResetForm">取消</span>
@@ -47,10 +56,11 @@ interface ButtonItem {
 
 let LOOP_TIMER: NodeJS.Timer
 const STORAGE_KEY = 'equipConfig'
+const MIN_STEP_TIME = 3
 const showForm = ref(true)
 const config = ref<EquipConfig>({
   equipId: '',
-  loop: false,
+  loop: true,
   stepTime: 5
 })
 const buttons = ref<ButtonItem[]>([])

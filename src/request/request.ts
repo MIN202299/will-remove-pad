@@ -1,8 +1,8 @@
 import axios from 'axios'
 
-export const baseURL = 'http://192.168.0.5:3000/'
+export const baseURL = 'http://192.168.3.5:3000/'
 
-export const socketURL = 'http://192.168.0.5:3001'
+export const socketURL = 'http://192.168.3.5:3001'
 
 const request =  axios.create({
   baseURL: baseURL,

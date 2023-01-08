@@ -12,25 +12,33 @@
 
       </el-scrollbar>
     </div>
-    <div v-show="!showForm" class="m-pic-box">
-      <main class="m-pic-wrapper">
-        <img
-          v-for="(img, index) in imgList" 
-          :class="activeIndexImage === index ? 'm-fade-in' : 'm-fade-out'"
-          :key="index" 
-          :src="img"
-          alt="">
+    <div v-show="!showForm && config.previewImg" class="m-pic-box">
+      <div>
+        <main 
+          ref="imgWrapperRef"
+          :style="{aspectRatio: equipInfo ? equipInfo.width / equipInfo.height : 16/9}"
+          class="m-pic-wrapper" 
+          @scroll="handleScroll"
+          >
+          <img class="m-img-head" v-if="imgList.length" :src="imgList[imgList.length - 1]" alt="">
 
-          <ul class="m-footer">
-            <li 
-              v-for="item in imgList.length" 
-              :key="item"
-              :class="activeIndexImage === item - 1 ? 'm-active' : ''"
-              @click="activeIndexImage = item - 1"
-            ></li>
-          </ul>
-      </main>
+          <img
+            v-for="(img, index) in imgList" 
+            :key="index" 
+            :src="img"
+            alt="">
+          
+          <img class="m-img-tail" v-if="imgList.length" :src="imgList[0]" alt="">
+        </main>
 
+        <ul class="m-footer">
+          <li 
+            v-for="item in imgList.length" 
+            :key="item"
+            :class="activeIndexImage === item - 1 ? 'm-active' : ''"
+          ></li>
+        </ul>
+      </div>
       
       
     </div>
@@ -40,36 +48,31 @@
   </div>
 
   <el-form v-show="showForm" :model="config" label-width="100" label-position="left" class="m-form">
-      <el-form-item label="设备号" prop="equipId">
-        <el-input v-model="config.equipId"></el-input>
-      </el-form-item>
-      
-      <el-form-item label="循环播放" prop="loop">
-        <el-switch v-model="config.loop"></el-switch>
-      </el-form-item>
+    <el-form-item label="设备号" prop="equipId">
+      <el-input v-model="config.equipId"></el-input>
+    </el-form-item>
+    
+    <el-form-item label="预览图片" prop="previewImg">
+      <el-switch v-model="config.previewImg"></el-switch>
+    </el-form-item>
 
-      <el-form-item label="循环间隔" prop="loop">
-        <el-input-number v-model="config.stepTime" :min="MIN_STEP_TIME" :disabled="!config.loop"></el-input-number>
-      </el-form-item>
-
-      <div class="m-form-footer">
-        <span @click="onResetForm">重置</span>
-        <span @click="onSaveForm" style="background: rgba(0,0,0, .1);">保存</span>
-      </div>
-    </el-form>
+    <div class="m-form-footer">
+      <span @click="onResetForm">重置</span>
+      <span @click="onSaveForm" style="background: rgba(0,0,0, .1);">保存</span>
+    </div>
+  </el-form>
 
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, computed, watch, nextTick} from 'vue'
 import { get, baseURL, post } from '@/request/request'
 import { getStorage, setStorage } from '@/utils/storage'
 import { ElMessage } from 'element-plus'
 
 interface EquipConfig {
   equipId: string;
-  loop: boolean;
-  stepTime: number; // 切换间隔 （秒） 
+  previewImg: boolean;
 }
 
 interface ButtonItem {
@@ -79,14 +82,13 @@ interface ButtonItem {
 }
 
 let LOOP_TIMER: NodeJS.Timer
-const STORAGE_KEY = 'equipConfig'
+const STORAGE_KEY = 'equipId'
 const MIN_STEP_TIME = 3
 const showForm = ref(true)
 const bgImg = ref('')
 const config = ref<EquipConfig>({
   equipId: '',
-  loop: true,
-  stepTime: 5
+  previewImg: true,
 })
 const buttons = ref<ButtonItem[]>([])
 const equipInfo = ref()
@@ -102,75 +104,84 @@ const imgList = computed(() => {
 })
 
 const onSaveForm = async () => {
+  // check equip
+  if (!config.value.equipId) {
+    return ElMessage.error('请输入设备号')
+  }
+  const equip = await checkEquip(config.value.equipId)
+  if (!equip) return
+  showForm.value = false
+  setStorage<string>(STORAGE_KEY, config.value.equipId)
   getEquipDetail()
 }
 
 const onResetForm = () => {
   config.value = {
     equipId: '',
-    loop: false,
-    stepTime: 5
+    previewImg: false,
   }
+}
+
+const checkEquip = async (equipId: string) => {
+  const { code, data } = await get('guide/checkEquip/'+equipId)
+  if (code) {
+    showForm.value = true
+    ElMessage.error('设备不存在')
+    return false
+  }
+  return data
 }
 
 const getEquipDetail = async () => {
-  if (!config.value.equipId) {
-    showForm.value = true
-    return ElMessage.error('请输入设备号')
+  const equip = await checkEquip(config.value.equipId)
+  if(!equip) return
+
+  const { code, data } = await get(`guide/getDetail/${config.value.equipId}`)
+  // 设置背景图
+  if (data.equip.bgImg) {
+    bgImg.value = baseURL + data.equip.bgImg
   }
-  try {
-    const { code, data } = await get(`guide/getDetail/${config.value.equipId}`)
-    console.log(code, data)
-    if (code) {
-      return ElMessage.error('设备不存在')
-    }
-    if (data.equip.bgImg) {
-      bgImg.value = baseURL + data.equip.bgImg
-    }
-    // 判断是否设置配置
-    if (
-      Object.prototype.toString.call(data.equip.isLoop) === '[object Null]' ||
-      Object.prototype.toString.call(data.equip.stepTime) === '[object Null]'
-    ) {
-      showForm.value = true
-      return ElMessage.error('设备未配置')
-    }
 
-    equipInfo.value = data.equip
-    buttons.value = data.buttons
-
-    config.value.loop = data.equip.isLoop
-    config.value.stepTime = data.equip.stepTime
-
-    showForm.value = false
-    setStorage<EquipConfig>(STORAGE_KEY, config.value)
-
-    post('guide/updateConfig', { id: equipInfo.value.id, isLoop: config.value.loop, stepTime: config.value.stepTime })
-  } catch (e: any) {
-    ElMessage.error(e)
-  }
+  equipInfo.value = data.equip
+  buttons.value = data.buttons
 }
 
+let timer: NodeJS.Timeout
 
-// 读取配置
-const equipConfig = getStorage<EquipConfig>(STORAGE_KEY)
-
-if (equipConfig?.equipId) {
-  config.value.equipId = equipConfig.equipId
-  getEquipDetail()
+const handleScroll = (e: Event) => {
+  const target = e.target as HTMLElement;
+  const scrollLeft =  target.scrollLeft;
+  const targetWidth =  target.offsetWidth;
+  const index = Math.round(scrollLeft / targetWidth)
+  activeIndexImage.value = index - 1
+  if (activeIndexImage.value < 0) activeIndexImage.value = imgList.value.length -1
+  if (timer) clearTimeout(timer)
+  timer = setTimeout(() => {
+    if (index === imgList.value.length + 1) {
+      target.scrollTo(targetWidth, 0)
+      activeIndexImage.value = 0
+    }
+    if (index === 0) {
+      target.scrollTo(imgList.value.length * targetWidth, 0)
+      activeIndexImage.value = imgList.value.length - 1
+    }
+  }, 100);
+  
+  e.preventDefault()
+  e.stopPropagation()
 }
 
-// 循环
-const useLoop = () => {
-  if (LOOP_TIMER) clearInterval(LOOP_TIMER);
-  if (!config.value.loop) return;
-  LOOP_TIMER = setInterval(() => {
-    activeIndexImage.value++
-  }, config.value.stepTime * 1000)
+const imgWrapperRef = ref<HTMLElement>()
+
+const initScroll = () => {
+  const width = imgWrapperRef.value?.offsetWidth 
+  imgWrapperRef.value?.scrollTo(width ?? 0, 0)
+  console.log(width)
 }
 
 watch(activeIndexButton, () => {
   activeIndexImage.value = 0
+  initScroll()
   post('guide/changeImage', { 
     imageIndex: activeIndexImage.value,
     buttonIndex: activeIndexButton.value
@@ -188,19 +199,22 @@ watch(activeIndexImage, () => {
   })
 })
 
-
-
-watch(showForm, useLoop)
-
-
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    initScroll()
+  }, 100);
+})
 onMounted(() => {
-  getEquipDetail()
-  // useLoop()
+  // 读取配置
+  const equipId = getStorage<string>(STORAGE_KEY)
+  if (equipId) {
+    config.value.equipId =  equipId
+    showForm.value = false
+    getEquipDetail()
+  }
 })
 
-onBeforeUnmount(() => {
-  if (LOOP_TIMER) clearInterval(LOOP_TIMER);
-})
+onBeforeUnmount(() => {})
 
 
 </script>
@@ -213,6 +227,9 @@ $controlWidth: 240px;
   height: 100vh;
   display: flex;
   align-items: center;
+  &::-webkit-scrollbar {
+    display: none;
+  }
   .m-bg {
     position: absolute;
     top: 0;
@@ -274,11 +291,12 @@ $controlWidth: 240px;
   
     .el-scrollbar {
       :deep(.el-scrollbar__wrap) {
-        // display: flex;
-        // align-items: center;
+        display: flex;
+        align-items: center;
       }
       :deep(.el-scrollbar__view) {
-        // width: 100%;
+        width: 100%;
+        max-height: 100%;
       }
     }
   }
@@ -294,52 +312,48 @@ $controlWidth: 240px;
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    .m-pic-wrapper {
-      position: relative;
+    > div {
       width: 80%;
-      max-height: 80vh;
-      min-height: 80vh;
-      overflow: hidden;
+    }
+    .m-pic-wrapper {
+      display: flex;
+      margin-bottom: 25px;
+      width: 100%;      
+      align-items: center;
+      overflow-x: auto;
+      overflow-y: hidden;
       border-radius: 6px;
+      scroll-snap-type: x mandatory;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
       img {
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
         width: 100%;
-        opacity: 0;
+        height: 100%;
+        flex-shrink: 0;
+        flex-grow: 0;
         border-radius: 6px;
-        transition: opacity 1s linear;
-      }
-      .m-fade-in {
-        opacity: 1;
-      }
-      .m-fade-out {
-        opacity: 0;
+        scroll-snap-align: center;
+        scroll-snap-stop: always;
       }
     }
 
     .m-footer {
-      display: flex;
-      position: absolute;
-      bottom: 50px;
-      left: 50%;
-      min-width: 60%;
-      padding: 20px;
-      // background-color: rgba($color: #fff, $alpha: .2);
-      transform: translateX(-50%);
-      align-items: center;
-      justify-content: space-around;
-      // backdrop-filter: blur(10px);
+      margin: 0 auto;
+      width: 100%;
       border-radius: 6px;
+      text-align: center;
 
       li {
+        display: inline-block;
         margin: 5px;
         width: 100%;
-        height: 6px;
+        height: 4px;
         min-width: 6px;
-        background-color: rgba(255,255,255,.5);
-        border-radius: 3px;
+        max-width: 50px;
+        background-color: rgba(255,255,255,.3);
+        border-radius: 2px;
         transition: all 300ms;
         cursor: pointer;
       
@@ -426,17 +440,27 @@ $controlWidth: 240px;
   }
 }
 
-@media screen and (max-width: 400px) {
+@media screen and (max-width: 500px) {
   .m-main {
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
     .m-control {
-      margin-left: -$controlWidth;
-      
+      // margin-left: -$controlWidth;
+      width: 100%;
+      scroll-snap-align: center;
     }
 
     .m-pic-box {
+      flex-shrink: 0;
+      width: 100%;
+      scroll-snap-align: center;
       .m-pic-wrapper {
-        width: 90%;
+        width: 100%;
       }
+      
+    }
+    .m-bg {
+      width: 200%;
     }
   }
 }

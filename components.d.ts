@@ -17,5 +17,7 @@ declare module '@vue/runtime-core' {
     FadeInOut: typeof import('./src/components/FadeInOut.vue')['default']
     FadeInOut2: typeof import('./src/components/FadeInOut2.vue')['default']
     Pad: typeof import('./src/components/Pad.vue')['default']
+    RouterLink: typeof import('vue-router')['RouterLink']
+    RouterView: typeof import('vue-router')['RouterView']
   }
 }
