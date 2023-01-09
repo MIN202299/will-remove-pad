@@ -1,21 +1,23 @@
 <template>
   <div class="m-main">
-    <div v-show="!showForm" class="m-pic-box" @click="showForm = true">
-      <img
-        v-for="(img, index) in imgList" 
-        :class="activeIndexImage === index ? 'm-fade-in' : 'm-fade-out'"
-        :key="index" 
-        :src="img"
-        alt="">
-    </div>
+    <Transition name="fade">
+      <div v-show="!showForm" class="m-pic-box" @click="showForm = true">
+        <img
+          v-for="(img, index) in imgList"
+          :class="activeIndexImage === index ? 'm-fade-in' : 'm-fade-out'"
+          :key="index" 
+          :src="img.src"
+          alt="">
+      </div>
+    </Transition>
     <div class="m-bg">
-      <img src="/src/assets/logo.png" alt="">
+      <img src="../assets/logo.png" alt="">
     </div>
   </div>
 
   <el-form v-show="showForm" :model="config" label-width="100" label-position="left" class="m-form">
     <el-form-item label="设备号" prop="equipId">
-      <el-input v-model="config.equipId"></el-input>
+      <el-input v-model="config.equipId" maxlength="10" show-word-limit></el-input>
     </el-form-item>
     
     <el-form-item label="循环播放" prop="loop">
@@ -72,59 +74,59 @@ const activeIndexImage = ref(0)
 const activeIndexButton = ref(0)
 
 const imgList = computed(() => {
-  const activeButton = buttons.value[activeIndexButton.value]
-  return activeButton ? activeButton.materials.split(',').map(item => baseURL + item) : []
+  const imgs: Array<{id: string, src: string}> = []
+  buttons.value.forEach((item, index1) => {
+    item.materials.split(',').forEach((img, index2) => {
+      imgs.push({
+        id: index1 + '-' + index2,
+        src: baseURL + img
+      })
+    })
+  })
+
+  return imgs
 })
 
 
 const onSaveForm = async () => {
+  if (!config.value.equipId) {
+    return ElMessage.error('请输入设备号')
+  }
+  const equip = await checkEquip(config.value.equipId)
+  if(!equip) return
+  showForm.value = false
+  setStorage<EquipConfig>(STORAGE_KEY, config.value)
   getEquipDetail()
 }
 
 const onResetForm = () => {
-  if (equipConfig?.equipId) {
+  if (config.value.equipId) {
     showForm.value = false
   }
+}
+
+const checkEquip = async (equipId: string) => {
+  const { code, data } = await get('guide/checkEquip/'+equipId)
+  if (code) {
+    showForm.value = true
+    ElMessage.error('设备不存在')
+    return false
+  }
+  return data
 }
 
 const getEquipDetail = async () => {
-  if (!config.value.equipId) {
-    showForm.value = true
-    return ElMessage.error('请输入设备号')
-  }
-  try {
-    const { code, data } = await get(`guide/getDetail/${config.value.equipId}`)
-    console.log(code, data)
-    if (code) {
-      return ElMessage.error('设备不存在')
-    }
+  const equip = await checkEquip(config.value.equipId)
+  if (!equip) return
 
-    if (
-      Object.prototype.toString.call(data.equip.isLoop) === '[object Null]' ||
-      Object.prototype.toString.call(data.equip.stepTime) === '[object Null]'
-    ) {
-      showForm.value = true
-      return ElMessage.error('设备未配置')
-    }
-    
+  const { code, data } = await get(`guide/getDetail/${config.value.equipId}`)
+  if (!code) {
     equipInfo.value = data.equip
     buttons.value = data.buttons
-    config.value.loop = data.equip.isLoop
-    config.value.stepTime = data.equip.stepTime
-
-    showForm.value = false
-    setStorage<EquipConfig>(STORAGE_KEY, config.value)
-  } catch (e: any) {
-    console.log(e)
+  } else {
+    showForm.value = true
+    console.log(code, data)
   }
-}
-
-// 读取配置
-const equipConfig = getStorage<EquipConfig>(STORAGE_KEY)
-
-if (equipConfig?.equipId) {
-  config.value.equipId = equipConfig.equipId
-  getEquipDetail()
 }
 
 // 启用循环
@@ -134,6 +136,10 @@ const useLoop = () => {
   LOOP_TIMER = setInterval(() => {
     activeIndexImage.value++
   }, config.value.stepTime * 1000)
+}
+
+const clearUseLoop = () => {
+  if (LOOP_TIMER) clearInterval(LOOP_TIMER);
 }
 
 watch(activeIndexImage, () => {
@@ -149,42 +155,47 @@ watch(activeIndexImage, () => {
 
 watch(showForm, useLoop)
 
-
 onMounted(() => {
-  getEquipDetail()
+  // 读取配置
+  const equipConfig = getStorage<EquipConfig>(STORAGE_KEY)
+
+  if (equipConfig?.equipId) {
+    config.value = equipConfig
+    showForm.value = false
+    getEquipDetail()
+  }
+
   useLoop()
   useSocket()
   // 接受到改变图片指令
   socket.on(ActionType.CHANGE_MATERIAL, (data: ChangeImageMsg) => {
-    console.log('changeImage', data)
-    activeIndexButton.value = data.buttonIndex
-    activeIndexImage.value = data.imageIndex
+    const index = imgList.value.findIndex(item => item.id === `${data.buttonIndex}-${data.imageIndex}`)
+    activeIndexImage.value = index === -1 ? 0 : index
+    // 清除上个定时器
+    useLoop()
   })
   // 接收到播放/暂停指令
   socket.on(ActionType.PLAY_OR_PAUSE, (data: PlayOrPauseMsg) => {
     if (LOOP_TIMER) clearInterval(LOOP_TIMER)
     if (data.type === 'play') {
-      LOOP_TIMER = setInterval(() => {
-        activeIndexImage.value++
-      }, config.value.stepTime * 1000)
+      useLoop()
     }
   })
 
   socket.on(ActionType.TO_NEXT, () => {
     activeIndexImage.value++
+    useLoop()
   })
 
   socket.on(ActionType.TO_LAST, () => {
     activeIndexImage.value--
-  })
-
-  socketPost<number, string>(123, (res) => {
-    console.log(res)
+    useLoop()
   })
 })
 
 onBeforeUnmount(() => {
   if (LOOP_TIMER) clearInterval(LOOP_TIMER);
+  if(socket) socket.removeAllListeners()
 })
 
 
@@ -222,14 +233,12 @@ $controlWidth: 240px;
     overflow: hidden;
     img {
       position: absolute;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
+      top:0;
+      left: 0;
       width: 100%;
       height: 100%;
       opacity: 0;
-      border-radius: 6px;
-      transition: opacity 1s linear;
+      transition: opacity 0.5s linear;
       object-fit: cover;
     }
     .m-fade-in {
@@ -269,6 +278,10 @@ $controlWidth: 240px;
     :deep(.el-switch__core) {
       background: transparent;
       border-color: rgba($color: #fff, $alpha: .8);
+    }
+
+    :deep(.el-input__count-inner) {
+      background: transparent;
     }
 
     // :deep(.el-input-number__increase),
@@ -312,18 +325,13 @@ $controlWidth: 240px;
   }
 }
 
-@media screen and (max-width: 400px) {
-  .m-main {
-    .m-control {
-      margin-left: -$controlWidth;
-      
-    }
-
-    .m-pic-box {
-      .m-pic-wrapper {
-        width: 90%;
-      }
-    }
-  }
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 1s linear;
 }
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
 </style>

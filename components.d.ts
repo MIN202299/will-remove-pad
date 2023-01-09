@@ -14,8 +14,6 @@ declare module '@vue/runtime-core' {
     ElInputNumber: typeof import('element-plus/es')['ElInputNumber']
     ElScrollbar: typeof import('element-plus/es')['ElScrollbar']
     ElSwitch: typeof import('element-plus/es')['ElSwitch']
-    FadeInOut: typeof import('./src/components/FadeInOut.vue')['default']
-    FadeInOut2: typeof import('./src/components/FadeInOut2.vue')['default']
     Pad: typeof import('./src/components/Pad.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

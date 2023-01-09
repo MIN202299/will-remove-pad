@@ -49,7 +49,7 @@
 
   <el-form v-show="showForm" :model="config" label-width="100" label-position="left" class="m-form">
     <el-form-item label="设备号" prop="equipId">
-      <el-input v-model="config.equipId"></el-input>
+      <el-input v-model="config.equipId" maxlength="10" show-word-limit></el-input>
     </el-form-item>
     
     <el-form-item label="预览图片" prop="previewImg">
@@ -69,6 +69,7 @@ import { ref, reactive, onMounted, onBeforeUnmount, computed, watch, nextTick} f
 import { get, baseURL, post } from '@/request/request'
 import { getStorage, setStorage } from '@/utils/storage'
 import { ElMessage } from 'element-plus'
+import logo from '@/assets/logo.png'
 
 interface EquipConfig {
   equipId: string;
@@ -85,7 +86,7 @@ let LOOP_TIMER: NodeJS.Timer
 const STORAGE_KEY = 'equipId'
 const MIN_STEP_TIME = 3
 const showForm = ref(true)
-const bgImg = ref('')
+const bgImg = ref(logo)
 const config = ref<EquipConfig>({
   equipId: '',
   previewImg: true,
@@ -155,8 +156,10 @@ const handleScroll = (e: Event) => {
   const index = Math.round(scrollLeft / targetWidth)
   activeIndexImage.value = index - 1
   if (activeIndexImage.value < 0) activeIndexImage.value = imgList.value.length -1
+  if (activeIndexImage.value > imgList.value.length - 1) activeIndexImage.value = 0
   if (timer) clearTimeout(timer)
   timer = setTimeout(() => {
+    console.log(activeIndexImage.value)
     if (index === imgList.value.length + 1) {
       target.scrollTo(targetWidth, 0)
       activeIndexImage.value = 0
@@ -165,7 +168,7 @@ const handleScroll = (e: Event) => {
       target.scrollTo(imgList.value.length * targetWidth, 0)
       activeIndexImage.value = imgList.value.length - 1
     }
-  }, 100);
+  }, 300);
   
   e.preventDefault()
   e.stopPropagation()
@@ -176,7 +179,6 @@ const imgWrapperRef = ref<HTMLElement>()
 const initScroll = () => {
   const width = imgWrapperRef.value?.offsetWidth 
   imgWrapperRef.value?.scrollTo(width ?? 0, 0)
-  console.log(width)
 }
 
 watch(activeIndexButton, () => {
@@ -190,9 +192,6 @@ watch(activeIndexButton, () => {
 
 
 watch(activeIndexImage, () => {
-  if (activeIndexImage.value > imgList.value.length - 1) {
-    activeIndexImage.value = 0
-  }
   post('guide/changeImage', { 
     imageIndex: activeIndexImage.value,
     buttonIndex: activeIndexButton.value
@@ -202,8 +201,9 @@ watch(activeIndexImage, () => {
 window.addEventListener('load', () => {
   setTimeout(() => {
     initScroll()
-  }, 100);
+  }, 300);
 })
+
 onMounted(() => {
   // 读取配置
   const equipId = getStorage<string>(STORAGE_KEY)
@@ -397,6 +397,10 @@ $controlWidth: 240px;
     :deep(.el-switch__core) {
       background: transparent;
       border-color: rgba($color: #fff, $alpha: .8);
+    }
+
+    :deep(.el-input__count-inner) {
+      background: transparent;
     }
 
     // :deep(.el-input-number__increase),
