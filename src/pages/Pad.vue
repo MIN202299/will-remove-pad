@@ -437,7 +437,7 @@ $controlWidth: 240px;
       user-select: none;
     
       &:hover {
-        transform: scale(1.2);
+        // transform: scale(1.2);
         cursor: pointer;
       }
     }

@@ -8,6 +8,8 @@ export {}
 declare module '@vue/runtime-core' {
   export interface GlobalComponents {
     BigScreen: typeof import('./src/components/BigScreen.vue')['default']
+    copy: typeof import('./src/components/ShowroomEquip copy.vue')['default']
+    CustomVideoPlayer: typeof import('./src/components/CustomVideoPlayer.vue')['default']
     ElForm: typeof import('element-plus/es')['ElForm']
     ElFormItem: typeof import('element-plus/es')['ElFormItem']
     ElInput: typeof import('element-plus/es')['ElInput']
@@ -17,5 +19,8 @@ declare module '@vue/runtime-core' {
     Pad: typeof import('./src/components/Pad.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    ShowroomEquip: typeof import('./src/components/ShowroomEquip.vue')['default']
+    ShowroomEquipControl: typeof import('./src/components/ShowroomEquipControl.vue')['default']
+    ShowroomEquipPad: typeof import('./src/components/ShowroomEquipPad.vue')['default']
   }
 }

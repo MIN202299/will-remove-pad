@@ -1,8 +1,10 @@
 import { createRouter, RouteRecordRaw, createWebHistory } from 'vue-router'
 
 
-const BigScreen = () => import('@/components/BigScreen.vue')
-const Pad = () => import('@/components/Pad.vue')
+const BigScreen = () => import('@/pages/BigScreen.vue')
+const Pad = () => import('@/pages/Pad.vue')
+const ShowroomEquip = () => import('@/pages/ShowroomEquip.vue')
+const ShowroomEquipPad = () => import('@/pages/ShowroomEquipPad.vue')
 
 const routes: RouteRecordRaw[] = [
   {
@@ -16,6 +18,14 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'pad',
         component: Pad
+      },
+      {
+        path: 'showroom',
+        component: ShowroomEquip
+      },
+      {
+        path: 'showroomPad',
+        component: ShowroomEquipPad
       }
     ]
   }
