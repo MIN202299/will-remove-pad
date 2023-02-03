@@ -1,15 +1,20 @@
 <template>
-  <div v-show="!showForm" class="m-main" ref="mainRef">
-    <Transition name="fade">
-      <div class="m-wrapper" v-if="activeResource">
-        <video v-if="activeResource.type === 'video'" :src="baseURL+activeResource.position" autoplay class="m-item"></video>
-        <img v-else :src="baseURL+activeResource.position" class="m-item" alt="">
+  <div v-show="!showForm" class="m-main" ref="mainRef" @click="test">
+    <TransitionGroup name="fade">
+      <div v-for="(item1, index1) in resourceList" :key="index1" class="m-theme" v-show="index1 === activeThemeIndex">
+        <Transition v-for="(item2, index2) in item1" name="fade" class="m-wrapper">
+          <div v-if="index1===activeThemeIndex && index2 === activeResourceIndex">
+            <video v-if="item2.type === 'video'" :src="baseURL+item2.position" autoplay muted class="m-item"></video>
+            <img v-else :src="baseURL+item2.position" class="m-item" alt="">
+          </div>
+        </Transition>
       </div>
-    </Transition>
+    </TransitionGroup>
     <div class="m-bg">
       <!-- <img src="../assets/logo.png" alt=""> -->
     </div>
   </div>
+  <div style="position: absolute; top: 0; left:0; width: 100px; height: 100px; background: #fff;color: #000;z-index: 999999;">{{ testCount }}</div>
 
   <el-form v-show="showForm" :model="config" label-width="100" label-position="left" class="m-form">
     <el-form-item label="设备号" prop="equipId">
@@ -30,17 +35,18 @@
 
 
     <div class="m-form-footer">
-      <span @click="onResetForm">取消</span>
+      <span @click="showForm = false">取消</span>
       <span @click="onSaveForm" style="background: rgba(0,0,0, .1);">保存</span>
     </div>
   </el-form>
 </template>
 
 <script setup lang="ts">
-  import { ref, onMounted, computed } from 'vue'
+  import { ref, onMounted, computed, onBeforeUnmount, watch } from 'vue'
   import { getStorage, setStorage } from '@/utils/storage'
-  import { get, baseURL } from '@/request/request'
+  import { get, baseURL, post } from '@/request/request'
   import { ElMessage } from 'element-plus';
+  import { useSocket, socket } from "@/utils/useSocket";
 
   type FileType = 'image' | 'video' | 'audio' | 'other'
 
@@ -64,14 +70,20 @@
   const MIN_STEP_TIME = 0
   const STEP_Time = 5
   const ShOWROOM_EQUIP='showroomEquip'
-  const showForm = ref(false)
+  const showForm = ref(true)
   const resourceList = ref<Resource[][]>([])
   const activeThemeIndex = ref(0)
   const activeResourceIndex = ref(0)
   const mainRef = ref()
-  
   let cacheEquip: any
   let cacheResource: any
+  let timer: NodeJS.Timer
+
+  const testCount = ref(0)
+  const test = () => {
+    testCount.value++
+    showForm.value = true
+  }
 
   const config = ref<FormType>({
     equipId: '',
@@ -86,36 +98,26 @@
     }
     return null
   })
+  
+  watch(showForm, (val) => {
+    if (val) {
+      removeTimer()
+    } else {
+      useTimer()
+    }
+  })
 
   onMounted(() => {
     getInitConfig()
-    // setInterval(() => {
-    //   activeResourceIndex.value++
-    //   if (activeResourceIndex.value >= resourceList.value[activeThemeIndex.value].length) {
-    //     activeResourceIndex.value = 0
-    //     activeThemeIndex.value++
-    //     if (activeThemeIndex.value >= resourceList.value.length) {
-    //       activeThemeIndex.value = 0
-    //       activeResourceIndex.value = 0
-    //     }
-    //   }
-    //   console.log(activeThemeIndex.value, activeResourceIndex.value)
-    // }, 3000)
-    window.addEventListener('keyup', () => {
-      activeResourceIndex.value++
-      if (activeResourceIndex.value >= resourceList.value[activeThemeIndex.value].length) {
-        activeResourceIndex.value = 0
-        activeThemeIndex.value++
-        if (activeThemeIndex.value >= resourceList.value.length) {
-          activeThemeIndex.value = 0
-          activeResourceIndex.value = 0
-        }
-      }
-      
-      console.log(activeThemeIndex.value, activeResourceIndex.value)
-    })
+    useTimer()
+    useSocket()
   })
   
+  onBeforeUnmount(() => {
+    removeTimer()
+  })
+
+
   function onResetForm() {
     config.value = {
       equipId: '',
@@ -138,14 +140,16 @@
     cacheEquip = data
     showForm.value = false
     getResource(cacheEquip.id)
+    addSocketListener()
   }
 
   async function getInitConfig() {
-    const config = getStorage<FormType>(ShOWROOM_EQUIP)
-    if (!config || !config.equipId) {
+    const data = getStorage<FormType>(ShOWROOM_EQUIP)
+    if (!data || !data.equipId) {
       return showForm.value = true
     }
-    getEquip(config.equipId)
+    config.value = data
+    getEquip(data.equipId)
   }
 
   async function getResource(id: number) {
@@ -153,16 +157,82 @@
     if (!code) {
       cacheResource = data
     }
-    const resource: Resource[][] = []
+    console.log('data', data)
+    const resource: any = []
+    activeResourceIndex.value = 0
+    activeThemeIndex.value = 0
     data.forEach((item: any) => {
       const raw = JSON.parse(item.raw)
-      const materialList = raw.materialList as Resource[]
-      resource.push(materialList)
+      if (cacheEquip.equipType === '多机联控') {
+        const materialList = raw.materialArr as Resource[]
+        resource.push(materialList)
+      } else {
+        const materialList = raw.materialList as Resource[]
+        resource.push(materialList)
+      }
     })
-    resourceList.value = resource
-    console.log(code, resource)
+
+    if (cacheEquip.equipType === '多机联控') {
+      let index: number
+      resourceList.value = resource.map((item: Resource[][]) => {
+        index = config.value.sortNum - 1
+        if (index < 0) {
+          index = 0
+        } else if (index > item.length - 1) {
+          index = item.length -1
+        }
+        return item[index]
+      })
+    } else {
+      resourceList.value = resource
+    }
+    console.log(code, resourceList.value)
   }
 
+  function useTimer() {
+    // 以第一个设备为准
+    if (!config.value.loop || config.value.sortNum !== 1) return;
+    if (timer) clearInterval(timer)
+    timer = setInterval(() => {
+      let resourceIndex = 0
+      let themeIndex = 0
+      resourceIndex = activeResourceIndex.value + 1
+      if (resourceIndex >= resourceList.value[activeThemeIndex.value].length) {
+        resourceIndex = 0
+        themeIndex = activeThemeIndex.value + 1
+        if (themeIndex >= resourceList.value.length) {
+          themeIndex = 0
+          resourceIndex = 0
+        } 
+      }
+      post('/showroom/socket/'+config.value.equipId, {
+        activeThemeIndex: themeIndex,
+        activeResourceIndex: resourceIndex,
+        stepTime: config.value.stepTime
+      })
+      console.log(config.value.stepTime)
+    }, config.value.stepTime * 1000);
+  }
+  function removeTimer() {
+    if (timer) clearInterval(timer)
+  }
+
+  function addSocketListener() {
+    if (socket) {
+      socket.removeAllListeners()
+      socket.on(config.value.equipId, (data) => {
+        activeResourceIndex.value = data.activeResourceIndex
+        activeThemeIndex.value = data.activeThemeIndex
+        console.log('socket', data)
+      })
+      socket.on('refresh', () => {
+        getEquip(config.value.equipId)
+      })
+    }
+  }
+  function removeAllListeners() {
+    if (socket) socket.removeAllListeners()
+  }
 </script>
 
 <style scoped lang="scss">
@@ -172,7 +242,6 @@
   height: 100vh;
   display: flex;
   align-items: center;
-  background-color: #fff;
   .m-bg {
     position: absolute;
     top: 0;
@@ -293,7 +362,7 @@
 
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 1.5s;
+  transition: opacity 1s linear;
 }
 .fade-enter-from,
 .fade-leave-to {
